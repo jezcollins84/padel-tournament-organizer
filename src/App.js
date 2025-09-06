@@ -52,7 +52,7 @@ const generateAmericanoSchedule = (players) => {
 
   const rounds = [];
   const playerIds = players.map(p => p.id);
-  const totalRounds = Math.min((players.length - 1) * 3 / 4, 8);
+  const totalRounds = Math.min(Math.floor((players.length - 1) * 3 / 4), 8);
   
   // Track partnerships and opponents for each player
   const partnerships = {};
@@ -201,3 +201,669 @@ const calculateLeaderboard = (players, rounds) => {
             if (stats[playerId]) {
               stats[playerId].points += 1;
             }
+          });
+        } else if (team2Score > team1Score) {
+          team2Players.forEach(playerId => {
+            if (stats[playerId]) {
+              stats[playerId].matchesWon++;
+              stats[playerId].points += 3;
+            }
+          });
+          team1Players.forEach(playerId => {
+            if (stats[playerId]) {
+              stats[playerId].points += 1;
+            }
+          });
+        } else {
+          // Draw
+          [...team1Players, ...team2Players].forEach(playerId => {
+            if (stats[playerId]) {
+              stats[playerId].points += 2;
+            }
+          });
+        }
+      }
+    });
+  });
+  
+  return Object.values(stats).sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
+    return (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost);
+  });
+};
+
+// Tournament Provider Component
+const TournamentProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(tournamentReducer, initialState);
+  
+  // Load tournaments from localStorage
+  useEffect(() => {
+    const savedTournaments = localStorage.getItem('padel_tournaments');
+    if (savedTournaments) {
+      try {
+        const tournaments = JSON.parse(savedTournaments);
+        dispatch({ type: 'SET_TOURNAMENTS', payload: tournaments });
+        
+        // Check URL for public tournament access
+        const urlParams = new URLSearchParams(window.location.search);
+        const tournamentId = urlParams.get('tournament');
+        if (tournamentId) {
+          const tournament = tournaments.find(t => t.id === tournamentId);
+          if (tournament) {
+            dispatch({ type: 'SET_VIEW', payload: { view: 'tournament-public', tournament } });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading tournaments:', error);
+      }
+    }
+  }, []);
+  
+  // Save tournaments to localStorage
+  useEffect(() => {
+    localStorage.setItem('padel_tournaments', JSON.stringify(state.tournaments));
+  }, [state.tournaments]);
+  
+  return (
+    <TournamentContext.Provider value={{ state, dispatch }}>
+      {children}
+    </TournamentContext.Provider>
+  );
+};
+
+// Custom hook to use tournament context
+const useTournaments = () => {
+  const context = useContext(TournamentContext);
+  if (!context) {
+    throw new Error('useTournaments must be used within TournamentProvider');
+  }
+  return context;
+};
+
+// Main App Component
+function App() {
+  return (
+    <TournamentProvider>
+      <div className="App">
+        <Router />
+      </div>
+    </TournamentProvider>
+  );
+}
+
+// Simple Router Component
+const Router = () => {
+  const { state } = useTournaments();
+  
+  return (
+    <div>
+      <Header />
+      {state.currentView === 'dashboard' && <Dashboard />}
+      {state.currentView === 'tournament-admin' && <TournamentAdmin />}
+      {state.currentView === 'tournament-public' && <TournamentPublic />}
+    </div>
+  );
+};
+
+// Header Component
+const Header = () => {
+  const { state, dispatch } = useTournaments();
+  
+  return (
+    <header className="app-header">
+      <div className="container">
+        <div className="header-content">
+          <div className="logo">
+            <span className="logo-icon">🎾</span>
+            <div>
+              <h1>Padel Americano</h1>
+              <p>Tournament Organizer</p>
+            </div>
+          </div>
+          {state.currentView !== 'dashboard' && (
+            <button
+              onClick={() => dispatch({ type: 'SET_VIEW', payload: { view: 'dashboard', tournament: null } })}
+              className="btn btn-secondary"
+            >
+              ← Back to Dashboard
+            </button>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+};
+
+// Dashboard Component
+const Dashboard = () => {
+  const { state, dispatch } = useTournaments();
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  
+  const activeTournaments = state.tournaments.filter(t => t.status === 'active' || t.status === 'in_progress');
+  
+  return (
+    <div className="container main-content">
+      <div className="dashboard-header">
+        <div>
+          <h2>Tournament Dashboard</h2>
+          <p>Manage up to 3 active tournaments</p>
+        </div>
+        <button
+          onClick={() => setShowCreateForm(true)}
+          disabled={activeTournaments.length >= 3}
+          className="btn btn-primary"
+        >
+          + New Tournament
+        </button>
+      </div>
+      
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon">🏆</div>
+          <div>
+            <div className="stat-number">{activeTournaments.length}</div>
+            <div className="stat-label">Active Tournaments</div>
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-icon">👥</div>
+          <div>
+            <div className="stat-number">
+              {activeTournaments.reduce((sum, t) => sum + t.players.length, 0)}
+            </div>
+            <div className="stat-label">Total Players</div>
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-icon">🎯</div>
+          <div>
+            <div className="stat-number">
+              {activeTournaments.reduce((sum, t) => sum + (t.schedule?.length || 0), 0)}
+            </div>
+            <div className="stat-label">Total Rounds</div>
+          </div>
+        </div>
+      </div>
+      
+      {showCreateForm && (
+        <CreateTournamentForm onClose={() => setShowCreateForm(false)} />
+      )}
+      
+      <div className="tournaments-list">
+        {activeTournaments.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">🎾</div>
+            <h3>No Active Tournaments</h3>
+            <p>Create your first Americano tournament to get started</p>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="btn btn-primary"
+            >
+              Create Tournament
+            </button>
+          </div>
+        ) : (
+          activeTournaments.map(tournament => (
+            <TournamentCard key={tournament.id} tournament={tournament} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Create Tournament Form Component
+const CreateTournamentForm = ({ onClose }) => {
+  const { dispatch } = useTournaments();
+  const [formData, setFormData] = useState({
+    name: '',
+    courts: 2,
+    matchDuration: 15,
+    breakDuration: 5
+  });
+  const [errors, setErrors] = useState({});
+  
+  const generateAdminCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
+  
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const newErrors = {};
+    
+    if (!formData.name.trim()) newErrors.name = 'Tournament name is required';
+    if (formData.courts < 1 || formData.courts > 10) newErrors.courts = 'Courts must be between 1-10';
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    
+    const tournament = {
+      id: Date.now().toString(),
+      name: formData.name.trim(),
+      adminCode: generateAdminCode(),
+      courts: parseInt(formData.courts),
+      matchDuration: parseInt(formData.matchDuration),
+      breakDuration: parseInt(formData.breakDuration),
+      players: [],
+      schedule: [],
+      status: 'active',
+      createdAt: new Date().toISOString()
+    };
+    
+    dispatch({ type: 'ADD_TOURNAMENT', payload: tournament });
+    onClose();
+  };
+  
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-header">
+          <h2>Create New Tournament</h2>
+          <button onClick={onClose} className="modal-close">×</button>
+        </div>
+        
+        <div className="modal-body">
+          <form onSubmit={handleSubmit} className="form">
+            <div className="form-group">
+              <label>Tournament Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., Weekend Championship"
+              />
+              {errors.name && <span className="error">{errors.name}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label>Number of Courts</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={formData.courts}
+                onChange={(e) => setFormData({ ...formData, courts: e.target.value })}
+              />
+              {errors.courts && <span className="error">{errors.courts}</span>}
+            </div>
+            
+            <div className="form-group">
+              <label>Match Duration (minutes)</label>
+              <input
+                type="number"
+                min="10"
+                max="60"
+                value={formData.matchDuration}
+                onChange={(e) => setFormData({ ...formData, matchDuration: e.target.value })}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Break Duration (minutes)</label>
+              <input
+                type="number"
+                min="0"
+                max="30"
+                value={formData.breakDuration}
+                onChange={(e) => setFormData({ ...formData, breakDuration: e.target.value })}
+              />
+            </div>
+            
+            <div className="form-actions">
+              <button type="button" onClick={onClose} className="btn btn-secondary">
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Create Tournament
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Tournament Card Component
+const TournamentCard = ({ tournament }) => {
+  const { dispatch } = useTournaments();
+  
+  const completedMatches = tournament.schedule?.reduce((sum, round) => 
+    sum + round.matches.filter(m => m.status === 'completed').length, 0) || 0;
+  const totalMatches = tournament.schedule?.reduce((sum, round) => sum + round.matches.length, 0) || 0;
+  
+  const copyPublicLink = () => {
+    const publicLink = `${window.location.origin}?tournament=${tournament.id}`;
+    navigator.clipboard.writeText(publicLink).then(() => {
+      alert('Public link copied to clipboard!');
+    }).catch(() => {
+      prompt('Copy this link:', publicLink);
+    });
+  };
+  
+  return (
+    <div className="tournament-card">
+      <div className="tournament-card-header">
+        <div className="tournament-info">
+          <h3>{tournament.name}</h3>
+          <p>{tournament.players.length} players • {tournament.courts} courts</p>
+        </div>
+        <span className={`tournament-status status-${tournament.status}`}>
+          {tournament.status.replace('_', ' ').toUpperCase()}
+        </span>
+      </div>
+      
+      <div className="tournament-card-body">
+        <div className="tournament-stats">
+          <div className="tournament-stat">
+            <div className="tournament-stat-label">Admin Code</div>
+            <div className="tournament-stat-value">{tournament.adminCode}</div>
+          </div>
+          <div className="tournament-stat">
+            <div className="tournament-stat-label">Progress</div>
+            <div className="tournament-stat-value">{completedMatches}/{totalMatches}</div>
+          </div>
+          <div className="tournament-stat">
+            <div className="tournament-stat-label">Current Round</div>
+            <div className="tournament-stat-value">
+              {tournament.schedule?.find(r => r.status === 'active')?.roundNumber || 'Not Started'}
+            </div>
+          </div>
+          <div className="tournament-stat">
+            <div className="tournament-stat-label">Created</div>
+            <div className="tournament-stat-value">{new Date(tournament.createdAt).toLocaleDateString()}</div>
+          </div>
+        </div>
+        
+        <div className="tournament-actions">
+          <button
+            onClick={() => dispatch({ 
+              type: 'SET_VIEW', 
+              payload: { view: 'tournament-admin', tournament } 
+            })}
+            className="btn btn-primary"
+          >
+            Manage Tournament
+          </button>
+          
+          <button
+            onClick={() => dispatch({ 
+              type: 'SET_VIEW', 
+              payload: { view: 'tournament-public', tournament } 
+            })}
+            className="btn btn-outline"
+          >
+            View Public
+          </button>
+          
+          <button onClick={copyPublicLink} className="btn btn-secondary">
+            📋 Copy Public Link
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Tournament Admin Component
+const TournamentAdmin = () => {
+  const { state } = useTournaments();
+  const tournament = state.currentTournament;
+  const [activeTab, setActiveTab] = useState('players');
+  
+  if (!tournament) return <div>Tournament not found</div>;
+  
+  return (
+    <div className="container main-content">
+      <div className="card">
+        <div className="card-header">
+          <h2>{tournament.name} - Admin Panel</h2>
+          <p>Admin Code: <strong>{tournament.adminCode}</strong> | {tournament.players.length} Players | {tournament.courts} Courts</p>
+        </div>
+        
+        <div className="tabs">
+          <button 
+            className={`tab ${activeTab === 'players' ? 'active' : ''}`}
+            onClick={() => setActiveTab('players')}
+          >
+            👥 Players
+          </button>
+          <button 
+            className={`tab ${activeTab === 'schedule' ? 'active' : ''}`}
+            onClick={() => setActiveTab('schedule')}
+          >
+            📅 Schedule
+          </button>
+          <button 
+            className={`tab ${activeTab === 'scoring' ? 'active' : ''}`}
+            onClick={() => setActiveTab('scoring')}
+          >
+            🎯 Scoring
+          </button>
+          <button 
+            className={`tab ${activeTab === 'leaderboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('leaderboard')}
+          >
+            🏆 Leaderboard
+          </button>
+        </div>
+        
+        <div>
+          {activeTab === 'players' && <PlayersTab tournament={tournament} />}
+          {activeTab === 'schedule' && <ScheduleTab tournament={tournament} />}
+          {activeTab === 'scoring' && <ScoringTab tournament={tournament} />}
+          {activeTab === 'leaderboard' && <LeaderboardTab tournament={tournament} />}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Players Tab Component
+const PlayersTab = ({ tournament }) => {
+  const { dispatch } = useTournaments();
+  const [newPlayerName, setNewPlayerName] = useState('');
+  
+  const addPlayer = (e) => {
+    e.preventDefault();
+    if (!newPlayerName.trim() || tournament.players.length >= 64) return;
+    
+    const newPlayer = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      name: newPlayerName.trim()
+    };
+    
+    const updatedTournament = {
+      ...tournament,
+      players: [...tournament.players, newPlayer]
+    };
+    
+    dispatch({ type: 'UPDATE_TOURNAMENT', payload: updatedTournament });
+    setNewPlayerName('');
+  };
+  
+  const removePlayer = (playerId) => {
+    if (tournament.schedule.length > 0) {
+      alert('Cannot remove players after schedule is generated!');
+      return;
+    }
+    
+    const updatedTournament = {
+      ...tournament,
+      players: tournament.players.filter(p => p.id !== playerId)
+    };
+    dispatch({ type: 'UPDATE_TOURNAMENT', payload: updatedTournament });
+  };
+  
+  const generateSchedule = () => {
+    if (tournament.players.length < 4) {
+      alert('Need at least 4 players to generate schedule');
+      return;
+    }
+    
+    if (tournament.players.length % 4 !== 0) {
+      alert('Americano format requires multiples of 4 players (4, 8, 12, 16, etc.)');
+      return;
+    }
+    
+    try {
+      const schedule = generateAmericanoSchedule(tournament.players);
+      const updatedTournament = {
+        ...tournament,
+        schedule,
+        status: 'in_progress'
+      };
+      dispatch({ type: 'UPDATE_TOURNAMENT', payload: updatedTournament });
+      alert('Schedule generated successfully!');
+    } catch (error) {
+      alert('Error generating schedule: ' + error.message);
+    }
+  };
+  
+  return (
+    <div>
+      <div style={{ marginBottom: '2rem' }}>
+        <h3>Add Player</h3>
+        <form onSubmit={addPlayer} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end' }}>
+          <div className="form-group" style={{ flex: 1, margin: 0 }}>
+            <input
+              type="text"
+              value={newPlayerName}
+              onChange={(e) => setNewPlayerName(e.target.value)}
+              placeholder="Enter player name"
+              disabled={tournament.players.length >= 64}
+            />
+          </div>
+          <button 
+            type="submit" 
+            className="btn btn-primary"
+            disabled={tournament.players.length >= 64 || !newPlayerName.trim()}
+          >
+            Add Player
+          </button>
+        </form>
+      </div>
+      
+      <div style={{ marginBottom: '2rem' }}>
+        <h3>Players ({tournament.players.length}/64)</h3>
+        {tournament.players.length === 0 ? (
+          <div className="empty-state">
+            <p>No players added yet. Add players to start the tournament.</p>
+          </div>
+        ) : (
+          <div className="table-container">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tournament.players.map((player, index) => (
+                  <tr key={player.id}>
+                    <td>{index + 1}</td>
+                    <td>{player.name}</td>
+                    <td>
+                      <button 
+                        onClick={() => removePlayer(player.id)}
+                        className="btn btn-danger"
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
+                        disabled={tournament.schedule.length > 0}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      
+      {tournament.players.length >= 4 && tournament.schedule.length === 0 && (
+        <div>
+          <button onClick={generateSchedule} className="btn btn-success">
+            🎯 Generate Tournament Schedule
+          </button>
+          <p style={{ marginTop: '0.5rem', color: '#666', fontSize: '0.9rem' }}>
+            Current players: {tournament.players.length} 
+            {tournament.players.length % 4 !== 0 && ' (Need multiple of 4 for Americano format)'}
+          </p>
+        </div>
+      )}
+      
+      {tournament.schedule.length > 0 && (
+        <div className="message-success">
+          ✅ Schedule generated with {tournament.schedule.length} rounds! Go to the Schedule tab to view matches.
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Schedule Tab Component
+const ScheduleTab = ({ tournament }) => {
+  if (!tournament.schedule || tournament.schedule.length === 0) {
+    return (
+      <div className="empty-state">
+        <div className="empty-icon">📅</div>
+        <h3>No Schedule Generated</h3>
+        <p>Add players (multiples of 4) and generate a schedule from the Players tab.</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div>
+      <h3>Tournament Schedule ({tournament.schedule.length} rounds)</h3>
+      {tournament.schedule.map(round => (
+        <div key={round.id} className="card" style={{ marginBottom: '1.5rem' }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h4 style={{ margin: 0 }}>Round {round.roundNumber}</h4>
+            <span className={`tournament-status status-${round.status}`}>
+              {round.status.toUpperCase()}
+            </span>
+          </div>
+          <div>
+            {round.matches.map(match => (
+              <div key={match.id} className="match-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <strong>Court {match.court}</strong>
+                  <span className={`tournament-status status-${match.status}`} style={{ fontSize: '0.8rem' }}>
+                    {match.status.toUpperCase()}
+                  </span>
+                </div>
+                <div className="match-teams">
+                  <div className="team">
+                    <div className="team-names">
+                      {match.team1.map(id => 
+                        tournament.players.find(p => p.id === id)?.name || 'Unknown'
+                      ).join(' + ')}
+                    </div>
+                  </div>
+                  <div className="vs">VS</div>
+                  <div className="team">
+                    <div className="team-names">
+                      {match.team2.map(id => 
+                        tournament.players.find(p => p.id === id)?.name || 'Unknown'
+                      ).join(' + ')}
+                    </div>
+                  </div>
+                </div>
+                {match.status === 'completed' && (
+                  <div style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                    Score: {match.score.team1} - {match.score.team2}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
