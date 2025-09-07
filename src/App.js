@@ -326,7 +326,7 @@ const Header = () => {
 
 // Dashboard component
 const Dashboard = () => {
-  const { state, dispatch } = useTournaments();
+  const { state } = useTournaments();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const activeTournaments = state.tournaments.filter(
     t => t.status === 'active' || t.status === 'in_progress'
