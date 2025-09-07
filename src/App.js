@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, createContext, useContext, useReducer } from 'react';
 import './App.css';
 
@@ -896,4 +897,34 @@ const LeaderboardTab = ({ tournament }) => {
           </tr>
         </thead>
         <tbody>
-          {leaderboard.map((player
+          {leaderboard.map((player, index) => (
+            <tr key={player.id} className={index < 3 ? `rank-${index + 1}` : ''}>
+              <td>{index + 1}</td>
+              <td>{player.name}</td>
+              <td>{player.points}</td>
+              <td>{player.matchesWon}</td>
+              <td>{player.matchesPlayed}</td>
+              <td>{player.setsWon}</td>
+              <td>{player.setsLost}</td>
+              <td>{player.setsWon - player.setsLost}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+// TournamentPublic (read-only public view, basic)
+const TournamentPublic = () => {
+  const { state } = useTournaments();
+  const tournament = state.currentTournament;
+  if (!tournament) return <div>No public tournament found.</div>;
+  return (
+    <div className="container main-content">
+      <h2>{tournament.name}</h2>
+      <LeaderboardTab tournament={tournament} />
+      <ScheduleTab tournament={tournament} />
+    </div>
+  );
+};
+export default App;
