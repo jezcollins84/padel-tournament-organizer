@@ -4,12 +4,12 @@ import { getAuth } from 'firebase/auth';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "your-api-key-here",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "your-app-id"
+  apiKey: "AIzaSyCCscy3uEe1y1n-2U43G9CgFwU4YNhz9Yk",
+  authDomain: "padel-tournament-organiz-9ad55.firebaseapp.com",
+  projectId: "padel-tournament-organiz-9ad55",
+  storageBucket: "padel-tournament-organiz-9ad55.firebasestorage.app",
+  messagingSenderId: "941108670951",
+  appId: "1:941108670951:web:ee196058c70ec370cdcd42"
 };
 
 // Initialize Firebase
