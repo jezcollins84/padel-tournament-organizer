@@ -129,6 +129,24 @@ body {
   background: #059669;
 }
 
+.add-player-form {
+  display: flex;
+  gap: 1rem;                /* Adds space between input and button */
+  margin-bottom: 1rem;
+  align-items: center;
+}
+.add-player-form input[type="text"] {
+  padding: 0.5rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  flex: 1;
+}
+.add-player-form .btn {
+  padding: 0.5rem 1.2rem;
+  font-size: 1rem;
+}
+
 /* Main Content */
 .main-content {
   padding: 2rem 0;
