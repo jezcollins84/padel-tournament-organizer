@@ -53,6 +53,14 @@ body {
   margin: 0;
 }
 
+.player-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  gap: 1rem; /* ensures space between name and button */
+}
+
 /* Buttons */
 .btn {
   padding: 0.75rem 1.5rem;
@@ -618,6 +626,13 @@ body {
 
 .leaderboard-stat-label {
   font-size: 0.8rem;
+}
+
+.leaderboard-table th,
+.leaderboard-table td {
+  padding: 0.5rem 1rem;  /* Or adjust as desired */
+  text-align: center;
+  white-space: nowrap;
 }
 
 /* Responsive Design */
